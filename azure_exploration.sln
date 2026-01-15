@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36603.0 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "azure_exploration", "azure_exploration.csproj", "{940C2974-517E-43C2-86CD-1A6E3419C9C6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{940C2974-517E-43C2-86CD-1A6E3419C9C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{940C2974-517E-43C2-86CD-1A6E3419C9C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{940C2974-517E-43C2-86CD-1A6E3419C9C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{940C2974-517E-43C2-86CD-1A6E3419C9C6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {74AB46E9-7F6D-4198-A971-40FD45218A55}
+	EndGlobalSection
+EndGlobal
