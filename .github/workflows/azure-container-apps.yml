@@ -37,11 +37,12 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to Azure Container Registry
+      - name: Log in to Azure Container Registry with Docker
         run: |
           REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          az acr login --name $REGISTRY_NAME
-        continue-on-error: true
+          ACR_USERNAME=$(az acr credential show --name $REGISTRY_NAME --query username -o tsv)
+          ACR_PASSWORD=$(az acr credential show --name $REGISTRY_NAME --query passwords[0].value -o tsv)
+          echo $ACR_PASSWORD | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u $ACR_USERNAME --password-stdin
 
       - name: Build and push Docker image to Azure Container Registry
         uses: docker/build-push-action@v5
