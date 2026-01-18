@@ -37,12 +37,10 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to Azure Container Registry with Docker
+      - name: Log in to Azure Container Registry
         run: |
           REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          ACR_USERNAME=$(az acr credential show --name $REGISTRY_NAME --query username -o tsv)
-          ACR_PASSWORD=$(az acr credential show --name $REGISTRY_NAME --query passwords[0].value -o tsv)
-          echo $ACR_PASSWORD | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u $ACR_USERNAME --password-stdin
+          az acr login --name $REGISTRY_NAME
 
       - name: Build and push Docker image to Azure Container Registry
         uses: docker/build-push-action@v5
@@ -54,6 +52,20 @@ jobs:
             ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+      - name: Configure Container App with ACR registry (one-time setup, uses service principal token)
+        run: |
+          REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
+          # Get ACR access token using service principal (requires AcrPush role)
+          ACR_TOKEN=$(az acr login-token --name $REGISTRY_NAME)
+          # Container Apps registry config requires credentials - using token-based auth
+          # Username 00000000-0000-0000-0000-000000000000 is standard for token auth
+          az containerapp registry set \
+            --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
+            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --server ${{ secrets.AZURE_CONTAINER_REGISTRY }} \
+            --username 00000000-0000-0000-0000-000000000000 \
+            --password "$ACR_TOKEN" 2>&1 | grep -v "already exists" || true
 
       - name: Deploy to Azure Container App
         run: |
