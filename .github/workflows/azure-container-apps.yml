@@ -40,10 +40,12 @@ jobs:
       - name: Log in to Azure Container Registry with Service Principal
         run: |
           REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          # Get ACR access token using service principal (requires AcrPush role)
-          ACR_TOKEN=$(az acr login-token --name $REGISTRY_NAME)
-          # Use token for Docker login (username 00000000-0000-0000-0000-000000000000 for token auth)
-          echo "$ACR_TOKEN" | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u 00000000-0000-0000-0000-000000000000 --password-stdin
+          # Extract service principal client ID and secret from AZURE_CREDENTIALS using jq
+          SP_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')
+          SP_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')
+          # Use service principal credentials for Docker login (requires AcrPush role)
+          # Username is service principal client ID, password is client secret
+          echo "$SP_CLIENT_SECRET" | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u $SP_CLIENT_ID --password-stdin
 
       - name: Build and push Docker image to Azure Container Registry
         uses: docker/build-push-action@v5
@@ -56,19 +58,18 @@ jobs:
           cache-from: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
-      - name: Configure Container App with ACR registry (one-time setup, uses service principal token)
+      - name: Configure Container App with ACR registry (one-time setup, uses service principal)
         run: |
-          REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          # Get ACR access token using service principal (requires AcrPush role)
-          ACR_TOKEN=$(az acr login-token --name $REGISTRY_NAME)
-          # Container Apps registry config requires credentials - using token-based auth
-          # Username 00000000-0000-0000-0000-000000000000 is standard for token auth
+          # Extract service principal client ID and secret from AZURE_CREDENTIALS
+          SP_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')
+          SP_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')
+          # Container Apps registry config requires credentials - using service principal
           az containerapp registry set \
             --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --server ${{ secrets.AZURE_CONTAINER_REGISTRY }} \
-            --username 00000000-0000-0000-0000-000000000000 \
-            --password "$ACR_TOKEN" 2>&1 | grep -v "already exists" || true
+            --username $SP_CLIENT_ID \
+            --password "$SP_CLIENT_SECRET" 2>&1 | grep -v "already exists" || true
 
       - name: Deploy to Azure Container App
         run: |
