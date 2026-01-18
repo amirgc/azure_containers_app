@@ -43,7 +43,7 @@ jobs:
           az acr login --name $REGISTRY_NAME
         continue-on-error: true
 
-      - name: Build and push Docker image
+      - name: Build and push Docker image to Azure Container Registry
         uses: docker/build-push-action@v5
         with:
           context: .
