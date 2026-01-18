@@ -2,20 +2,10 @@ name: Build and Deploy to Azure Container Apps
 
 on:
   push:
-    branches:
-      - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 env:
-  AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
-  AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
-  AZURE_CONTAINER_APP_NAME: ${{ secrets.AZURE_CONTAINER_APP_NAME }}
-  AZURE_CONTAINER_APP_ENVIRONMENT: ${{ secrets.AZURE_CONTAINER_APP_ENVIRONMENT }}
   IMAGE_NAME: azure_exploration
 
 jobs:
@@ -23,65 +13,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Azure
+      - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to Azure Container Registry with Service Principal
+      - name: ACR login (uses the Azure login)
         run: |
-          REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          # Extract service principal client ID and secret from AZURE_CREDENTIALS using jq
-          SP_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')
-          SP_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')
-          # Use service principal credentials for Docker login (requires AcrPush role)
-          # Username is service principal client ID, password is client secret
-          echo "$SP_CLIENT_SECRET" | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u $SP_CLIENT_ID --password-stdin
+          az acr login --name ${{ secrets.ACR_NAME }}
 
-      - name: Build and push Docker image to Azure Container Registry
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
-
-      - name: Configure Container App with ACR registry (one-time setup, uses service principal)
+      - name: Build and push image
         run: |
-          # Extract service principal client ID and secret from AZURE_CREDENTIALS
-          SP_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')
-          SP_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')
-          # Container Apps registry config requires credentials - using service principal
-          az containerapp registry set \
-            --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --server ${{ secrets.AZURE_CONTAINER_REGISTRY }} \
-            --username $SP_CLIENT_ID \
-            --password "$SP_CLIENT_SECRET" 2>&1 | grep -v "already exists" || true
+          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Deploy to Azure Container App
+      - name: Deploy to Container App
         run: |
           az containerapp update \
             --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --image ${{ secrets.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        continue-on-error: true
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Show Container App URL
+      - name: Show URL
         run: |
-          echo "Container App URL:"
           az containerapp show \
             --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
