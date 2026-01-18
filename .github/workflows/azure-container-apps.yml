@@ -37,10 +37,13 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Log in to Azure Container Registry
+      - name: Log in to Azure Container Registry with Service Principal
         run: |
           REGISTRY_NAME=$(echo "${{ secrets.AZURE_CONTAINER_REGISTRY }}" | sed 's/\.azurecr\.io$//')
-          az acr login --name $REGISTRY_NAME
+          # Get ACR access token using service principal (requires AcrPush role)
+          ACR_TOKEN=$(az acr login-token --name $REGISTRY_NAME)
+          # Use token for Docker login (username 00000000-0000-0000-0000-000000000000 for token auth)
+          echo "$ACR_TOKEN" | docker login ${{ secrets.AZURE_CONTAINER_REGISTRY }} -u 00000000-0000-0000-0000-000000000000 --password-stdin
 
       - name: Build and push Docker image to Azure Container Registry
         uses: docker/build-push-action@v5
