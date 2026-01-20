@@ -15,22 +15,27 @@ jobs:
       contents: read
 
     steps:
+      # Checkout source code from repository
       - uses: actions/checkout@v4
 
+      # Authenticate to Azure using service principal credentials
       - name: Azure login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # Login to Azure Container Registry using authenticated Azure context
       - name: ACR login (uses the Azure login)
         run: |
           az acr login --name ${{ secrets.ACR_NAME }}
 
+      # Build Docker image and push to Azure Container Registry
       - name: Build and push image
         run: |
           docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      # Update Container App with new image from registry
       - name: Deploy to Container App
         run: |
           az containerapp update \
@@ -38,6 +43,7 @@ jobs:
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
             --image ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      # Display the Container App public URL
       - name: Show URL
         run: |
           az containerapp show \
